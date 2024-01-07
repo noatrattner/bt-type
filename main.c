@@ -42,17 +42,16 @@ enum state
 
 struct bt
 {
-    size_t curser;
-    size_t active_curser;
+    size_t game_curser;
+    size_t player_curser;
+    size_t line;
 
     char *txt;
-    enum state *state;
     size_t size;
 };
 
 void free_game(struct bt *game)
 {
-    free(game->state);
     free(game->txt);
 }
 
@@ -77,17 +76,9 @@ bool create_game(struct bt *game, const char *filename)
         return false;
     }
 
-    game->state = malloc(sizeof(game->state[0]) * size);
-    if (game->state == NULL)
-    {
-        free(game->txt);
-        fclose(file);
-        fprintf(stderr, "error: cannot malloc %ld bytes for the state: %s\n", size, strerror(errno));
-        return false;
-    }
-
-    game->curser = 0;
-    game->active_curser = 0;
+    game->game_curser = 0;
+    game->player_curser = 0;
+    game->line = 0;
     game->size = size;
     fread(game->txt, 1, size, file);
 
@@ -95,28 +86,58 @@ bool create_game(struct bt *game, const char *filename)
     return true;
 }
 
+void print_char(char c, const char *color)
+{
+    if (color != NULL)
+    {
+        printf("%s", color);
+    }
+
+    switch (c)
+    {
+    case '\n':
+    {
+        printf("\U000023CE");
+    }
+    break;
+    case ' ':
+    {
+        printf("\U0000FE4D");
+    }
+    break;
+    default:
+        printf("%c", c);
+    }
+
+    printf(C_RESET);
+}
+
 void line_print(struct bt *game)
 {
-    while (game->txt[game->curser] != '\0')
+    if (game->line > 0)
     {
-        char c = game->txt[game->curser];
-        printf("%c", c);
-        game->curser++;
+        printf("\n");
+    }
 
-        if (game->txt[game->curser] == '\n')
+    while (game->txt[game->game_curser] != '\0')
+    {
+        char c = game->txt[game->game_curser];
+        game->game_curser++;
+        print_char(c, NULL);
+        if (c == '\n')
         {
+            game->line++;
+            printf("\r");
+            fflush(stdout);
             return;
         }
     }
+    printf("\r");
+    fflush(stdout);
 }
 
 int main(int argc, char const *argv[])
 {
-    /*
-    V 1. read file
-    v 2. show line on screen
-    v 3. every typed character if typed ok then turn green else red
-     */
     if (argc < 2)
     {
         fprintf(stderr, "Usage: %s <txt file path>\n", argv[0]);
@@ -135,22 +156,22 @@ int main(int argc, char const *argv[])
     enable_raw_mode();
     atexit(restore_mode);
 
-    while (game.curser != game.size)
+    // Game loop
+    while (game.game_curser != game.size)
     {
         line_print(&game);
-        printf("\r");
-        fflush(stdout);
-        for (; game.active_curser < game.curser; game.active_curser++)
+
+        for (; game.player_curser < game.game_curser; game.player_curser++)
         {
             int c = getchar();
 
-            if (c == game.txt[game.active_curser])
+            if (c == game.txt[game.player_curser])
             {
-                printf(C_GRN "%c" C_RESET, game.txt[game.active_curser]);
+                print_char(game.txt[game.player_curser], C_GRN);
             }
             else
             {
-                printf(C_RED "%c" C_RESET, game.txt[game.active_curser]);
+                print_char(game.txt[game.player_curser], C_RED);
             }
         }
     }
