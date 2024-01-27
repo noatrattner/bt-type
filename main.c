@@ -5,15 +5,7 @@
 #include <string.h>
 #include <stdbool.h>
 #include <termios.h>
-
-#define C_RED "\x1B[31m"
-#define C_GRN "\x1B[32m"
-#define C_YEL "\x1B[33m"
-#define C_BLU "\x1B[34m"
-#define C_MAG "\x1B[35m"
-#define C_CYN "\x1B[36m"
-#define C_WHT "\x1B[37m"
-#define C_RESET "\x1B[0m"
+#include "colors.h"
 
 struct termios original;
 
@@ -42,17 +34,40 @@ enum state
 
 struct bt
 {
-    size_t game_curser;
-    size_t player_curser;
-    size_t line;
+    size_t current_line;
 
-    char *txt;
-    size_t size;
+    char **lines;
+    size_t lines_count;
 };
 
 void free_game(struct bt *game)
 {
-    free(game->txt);
+    for (size_t i = 0; i < game->lines_count; i++)
+    {
+        free(game->lines[i]);
+    }
+    free(game->lines);
+}
+
+int count_lines(FILE *file)
+{
+    // save curser position
+    long int curser_pos = ftell(file);
+
+    int count = 0;
+    int c = getc(file);
+    while (c != EOF)
+    {
+        if (c == '\n')
+        {
+            count++;
+        }
+        c = getc(file);
+    }
+
+    // return the curser to the last position
+    fseek(file, curser_pos, SEEK_SET);
+    return count;
 }
 
 bool create_game(struct bt *game, const char *filename)
@@ -64,23 +79,24 @@ bool create_game(struct bt *game, const char *filename)
         return false;
     }
 
-    fseek(file, 0, SEEK_END);
-    long int size = ftell(file);
-    fseek(file, 0, SEEK_SET);
+    // count lines
+    int lines_count = count_lines(file);
+    game->lines = malloc(sizeof(game->lines[0]) * lines_count);
 
-    game->txt = malloc(sizeof(game->txt[0]) * size);
-    if (game->txt == NULL)
+    // load each line
+    for (size_t i = 0; i < lines_count + 1; i++)
     {
-        fclose(file);
-        fprintf(stderr, "error: cannot malloc %ld bytes for the txt: %s\n", size, strerror(errno));
-        return false;
+        size_t buff_size = 128;
+        char buff[buff_size];
+        fgets(buff, buff_size, file);
+
+        size_t size_of_line = strlen(buff) + 1;
+        game->lines[i] = malloc(sizeof(char) * size_of_line);
+        memcpy(game->lines[i], buff, size_of_line);
     }
 
-    game->game_curser = 0;
-    game->player_curser = 0;
-    game->line = 0;
-    game->size = size;
-    fread(game->txt, 1, size, file);
+    game->current_line = 0;
+    game->lines_count = lines_count;
 
     fclose(file);
     return true;
@@ -112,28 +128,28 @@ void print_char(char c, const char *color)
     printf(C_RESET);
 }
 
-void line_print(struct bt *game)
-{
-    if (game->line > 0)
-    {
-        printf("\n");
-    }
+void cursor_backward(int x) { printf("\033[%dD", (x)); }
 
-    while (game->txt[game->game_curser] != '\0')
+void print_line(struct bt *game, int line_to_print)
+{
+    printf("\033[33m%s:%d %s \033[0m %d\n", __FILE__, __LINE__, __FUNCTION__, line_to_print);
+    const char *line = game->lines[line_to_print];
+    for (; *line != '\0'; line++)
     {
-        char c = game->txt[game->game_curser];
-        game->game_curser++;
-        print_char(c, NULL);
-        if (c == '\n')
-        {
-            game->line++;
-            printf("\r");
-            fflush(stdout);
-            return;
-        }
+        print_char(*line, NULL);
     }
-    printf("\r");
-    fflush(stdout);
+}
+
+void print_lines(struct bt *game, int game_line)
+{
+    if (game->current_line > game_line) // line deleted
+    {
+        // remove future line && add past line && move curser to end of last line
+    }
+    else if (game->current_line < game_line) // line completed
+    {
+        // remove past line && add future line && move curser to next line
+    }
 }
 
 int main(int argc, char const *argv[])
@@ -157,25 +173,42 @@ int main(int argc, char const *argv[])
     atexit(restore_mode);
 
     // Game loop
-    while (game.game_curser != game.size)
-    {
-        line_print(&game);
+    int game_line = 0;
+    print_line(&game, game.current_line);
+    putchar('\r');
+    fflush(stdout);
 
-        for (; game.player_curser < game.game_curser; game.player_curser++)
+    while (true) // FIXME: check if the player finished the file
+    {
+        const char *line = game.lines[game.current_line];
+        size_t line_len = strlen(line);
+        size_t curser = 0;
+        for (; curser < line_len; curser++)
         {
             int c = getchar();
 
-            if (c == game.txt[game.player_curser])
+            if (c == line[curser])
             {
-                print_char(game.txt[game.player_curser], C_GRN);
+                print_char(line[curser], C_GRN);
             }
             else
             {
-                print_char(game.txt[game.player_curser], C_RED);
+                print_char(game.lines[game.current_line][curser], C_RED);
             }
         }
+        game.current_line++;
+        putchar('\n');
+        print_line(&game, game.current_line);
+        putchar('\r');
+        fflush(stdout);
+        // new_line--;
+        // new_line++;
+
+        // TODO: check end game
     }
 
     free_game(&game);
     return EXIT_SUCCESS;
 }
+
+// TODO: fix segfault in the last print line
