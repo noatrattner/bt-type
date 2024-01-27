@@ -9,6 +9,16 @@
 
 struct termios original;
 
+struct glyph
+{
+    const char *g;
+    size_t len;
+};
+
+struct glyph g_font[256] = {
+    ['\n'] = {"\U000023CE", 2},
+    [' '] = {"\U0000FE4D", 2}};
+
 void enable_raw_mode()
 {
     // set global for restoring
@@ -109,20 +119,14 @@ void print_char(char c, const char *color)
         printf("%s", color);
     }
 
-    switch (c)
+    struct glyph g = g_font[c];
+    if (g.g == NULL)
     {
-    case '\n':
-    {
-        printf("\U000023CE");
-    }
-    break;
-    case ' ':
-    {
-        printf("\U0000FE4D");
-    }
-    break;
-    default:
         printf("%c", c);
+    }
+    else
+    {
+        printf("%s", g.g);
     }
 
     printf(C_RESET);
@@ -132,7 +136,6 @@ void cursor_backward(int x) { printf("\033[%dD", (x)); }
 
 void print_line(struct bt *game, int line_to_print)
 {
-    printf("\033[33m%s:%d %s \033[0m %d\n", __FILE__, __LINE__, __FUNCTION__, line_to_print);
     const char *line = game->lines[line_to_print];
     for (; *line != '\0'; line++)
     {
@@ -187,13 +190,34 @@ int main(int argc, char const *argv[])
         {
             int c = getchar();
 
-            if (c == line[curser])
+            if (c == 127) // backspace
             {
-                print_char(line[curser], C_GRN);
+                if (curser == 0)
+                {
+                    // TODO: move to last line
+                    continue;
+                }
+
+                size_t steps = 1;
+                struct glyph g = g_font[line[curser - 1]];
+                if (g.len != 0)
+                {
+                    steps = g.len;
+                }
+
+                cursor_backward(steps);
+                curser -= 2;
             }
             else
             {
-                print_char(game.lines[game.current_line][curser], C_RED);
+                if (c == line[curser])
+                {
+                    print_char(line[curser], C_GRN);
+                }
+                else
+                {
+                    print_char(game.lines[game.current_line][curser], C_RED);
+                }
             }
         }
         game.current_line++;
