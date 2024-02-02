@@ -133,6 +133,8 @@ void print_char(char c, const char *color)
 }
 
 void cursor_backward(int x) { printf("\033[%dD", (x)); }
+void cursor_forward(int x) { printf("\033[%dC", (x)); }
+void cursor_up(int x) { printf("\033[%dA", (x)); }
 
 void print_line(struct bt *game, int line_to_print)
 {
@@ -181,52 +183,69 @@ int main(int argc, char const *argv[])
     putchar('\r');
     fflush(stdout);
 
+    size_t curser = 0;
     while (true) // FIXME: check if the player finished the file
     {
         const char *line = game.lines[game.current_line];
-        size_t line_len = strlen(line);
-        size_t curser = 0;
-        for (; curser < line_len; curser++)
+        int c = getchar();
+
+        if (c == 127) // backspace
         {
-            int c = getchar();
-
-            if (c == 127) // backspace
+            if (curser == 0)
             {
-                if (curser == 0)
-                {
-                    // TODO: move to last line
-                    continue;
-                }
+                cursor_up(1);
+                game.current_line -= 1;
 
-                size_t steps = 1;
-                struct glyph g = g_font[line[curser - 1]];
-                if (g.len != 0)
-                {
-                    steps = g.len;
-                }
+                line = game.lines[game.current_line];
+                size_t line_len = strlen(line);
 
-                cursor_backward(steps);
-                curser -= 2;
+                size_t move_forward = 0;
+                for (size_t i = 0; i < line_len - 1; i++)
+                {
+                    size_t glyph_size = g_font[line[i]].len;
+                    if (glyph_size == 0)
+                    {
+                        glyph_size = 1;
+                    }
+                    move_forward += glyph_size;
+                }
+                cursor_forward(move_forward);
+                curser = line_len - 1;
+                continue;
+            }
+
+            size_t steps = 1;
+            struct glyph g = g_font[line[curser - 1]];
+            if (g.len != 0)
+            {
+                steps = g.len;
+            }
+            cursor_backward(steps);
+            curser -= 1;
+        }
+        else
+        {
+            if (c == line[curser])
+            {
+                print_char(line[curser], C_GRN);
             }
             else
             {
-                if (c == line[curser])
-                {
-                    print_char(line[curser], C_GRN);
-                }
-                else
-                {
-                    print_char(game.lines[game.current_line][curser], C_RED);
-                }
+                print_char(game.lines[game.current_line][curser], C_RED);
+            }
+            curser++;
+
+            // check for end of line
+            if (line[curser - 1] == '\n')
+            {
+                game.current_line++;
+                putchar('\n');
+                print_line(&game, game.current_line);
+                putchar('\r');
+                fflush(stdout);
+                curser = 0;
             }
         }
-        game.current_line++;
-        putchar('\n');
-        print_line(&game, game.current_line);
-        putchar('\r');
-        fflush(stdout);
-        // new_line--;
-        // new_line++;
 
         // TODO: check end game
     }
