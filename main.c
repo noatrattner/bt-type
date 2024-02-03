@@ -42,12 +42,22 @@ enum state
     INCORRECT,
 };
 
+struct stats
+{
+    size_t typed_chars;
+    size_t correctly_typed;
+    size_t wrongly_typed;
+    size_t backspace_typed;
+};
+
 struct bt
 {
     size_t current_line;
 
     char **lines;
     size_t lines_count;
+
+    struct stats stat;
 };
 
 void free_game(struct bt *game)
@@ -115,6 +125,11 @@ bool create_game(struct bt *game, const char *filename)
     game->current_line = 0;
     game->lines_count = lines_count;
 
+    game->stat.typed_chars = 0;
+    game->stat.correctly_typed = 0;
+    game->stat.wrongly_typed = 0;
+    game->stat.backspace_typed = 0;
+
     fclose(file);
     return true;
 }
@@ -164,6 +179,15 @@ void print_lines(struct bt *game, int game_line)
     }
 }
 
+void print_stat(struct stats stat)
+{
+    printf("stats:\n");
+    printf("    typed_chars:     %ld\n", stat.typed_chars);
+    printf("    correctly_typed: %ld\n", stat.correctly_typed);
+    printf("    wrongly_typed:   %ld\n", stat.wrongly_typed);
+    printf("    backspace_typed: %ld\n", stat.backspace_typed);
+}
+
 int main(int argc, char const *argv[])
 {
     if (argc < 2)
@@ -198,6 +222,7 @@ int main(int argc, char const *argv[])
 
         if (c == 127) // backspace
         {
+            game.stat.backspace_typed++;
             if (curser == 0)
             {
                 cursor_up(1);
@@ -232,12 +257,15 @@ int main(int argc, char const *argv[])
         }
         else
         {
+            game.stat.typed_chars++;
             if (c == line[curser])
             {
                 print_char(line[curser], C_GRN);
+                game.stat.correctly_typed++;
             }
             else
             {
+                game.stat.wrongly_typed++;
                 print_char(game.lines[game.current_line][curser], C_RED);
             }
             curser++;
@@ -259,8 +287,8 @@ int main(int argc, char const *argv[])
             }
         }
     }
-
-    printf("\n\tgame over!\n");
+    printf("\n\t\033[34mgame over!\033[0m\n");
+    print_stat(game.stat);
 
     free_game(&game);
     return EXIT_SUCCESS;
