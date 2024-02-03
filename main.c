@@ -94,15 +94,22 @@ bool create_game(struct bt *game, const char *filename)
     game->lines = malloc(sizeof(game->lines[0]) * lines_count);
 
     // load each line
-    for (size_t i = 0; i < lines_count + 1; i++)
+    for (size_t i = 0; i <= lines_count; i++)
     {
         size_t buff_size = 128;
         char buff[buff_size];
-        fgets(buff, buff_size, file);
-
-        size_t size_of_line = strlen(buff) + 1;
-        game->lines[i] = malloc(sizeof(char) * size_of_line);
-        memcpy(game->lines[i], buff, size_of_line);
+        if (fgets(buff, buff_size, file) != NULL)
+        {
+            size_t size_of_line = strlen(buff) + 1;
+            game->lines[i] = malloc(sizeof(char) * size_of_line);
+            memcpy(game->lines[i], buff, size_of_line);
+        }
+        else
+        {
+            size_t size_of_line = 1;
+            game->lines[i] = malloc(sizeof(char));
+            memcpy(game->lines[i], "\0", size_of_line);
+        }
     }
 
     game->current_line = 0;
@@ -184,7 +191,7 @@ int main(int argc, char const *argv[])
     fflush(stdout);
 
     size_t curser = 0;
-    while (true) // FIXME: check if the player finished the file
+    while (true)
     {
         const char *line = game.lines[game.current_line];
         int c = getchar();
@@ -245,10 +252,15 @@ int main(int argc, char const *argv[])
                 fflush(stdout);
                 curser = 0;
             }
-        }
 
-        // TODO: check end game
+            if (line[curser] == '\0' || game.lines[game.current_line][0] == '\0')
+            {
+                break;
+            }
+        }
     }
+
+    printf("\n\tgame over!\n");
 
     free_game(&game);
     return EXIT_SUCCESS;
