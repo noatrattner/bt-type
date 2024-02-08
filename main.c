@@ -5,6 +5,9 @@
 #include <string.h>
 #include <stdbool.h>
 #include <termios.h>
+#include <sys/time.h>
+#include <stdint.h>
+
 #include "colors.h"
 
 struct termios original;
@@ -18,6 +21,14 @@ struct glyph
 struct glyph g_font[256] = {
     ['\n'] = {"\U000023CE", 2},
     [' '] = {"\U0000FE4D", 2}};
+
+uint64_t get_time_ms()
+{
+    struct timeval tp;
+    gettimeofday(&tp, NULL);
+
+    return (tp.tv_sec * 1000) + (tp.tv_usec / 1000);
+}
 
 void enable_raw_mode()
 {
@@ -48,6 +59,9 @@ struct stats
     size_t correctly_typed;
     size_t wrongly_typed;
     size_t backspace_typed;
+
+    size_t words_typed;
+    uint64_t start_time; // used for calculation of speed
 };
 
 struct bt
@@ -130,6 +144,9 @@ bool create_game(struct bt *game, const char *filename)
     game->stat.wrongly_typed = 0;
     game->stat.backspace_typed = 0;
 
+    game->stat.words_typed = 1; // because the last word wont count
+    game->stat.start_time = get_time_ms();
+
     fclose(file);
     return true;
 }
@@ -182,10 +199,14 @@ void print_lines(struct bt *game, int game_line)
 void print_stat(struct stats stat)
 {
     printf("stats:\n");
-    printf("    typed_chars:     %ld\n", stat.typed_chars);
-    printf("    correctly_typed: %ld\n", stat.correctly_typed);
-    printf("    wrongly_typed:   %ld\n", stat.wrongly_typed);
-    printf("    backspace_typed: %ld\n", stat.backspace_typed);
+    printf("    typed_chars:           %ld\n", stat.typed_chars);
+    printf("    correctly_typed:       %ld\n", stat.correctly_typed);
+    printf("    wrongly_typed:         %ld\n", stat.wrongly_typed);
+    printf("    backspace_typed:       %ld\n", stat.backspace_typed);
+    printf("    words_typed:           %ld\n", stat.words_typed);
+    const float time_took = (get_time_ms() - stat.start_time) / 1000.f;
+    printf("    time took in seconds:  %.2f\n", time_took);
+    printf("    word per minute:       %.2f\n", stat.words_typed / (time_took / 60.f));
 }
 
 int main(int argc, char const *argv[])
@@ -245,6 +266,10 @@ int main(int argc, char const *argv[])
                 curser = line_len - 1;
                 continue;
             }
+            if (line[curser - 1] == '\n' || line[curser - 1] == ' ' || line[curser - 1] == '\t')
+            {
+                game.stat.words_typed--;
+            }
 
             size_t steps = 1;
             struct glyph g = g_font[line[curser - 1]];
@@ -257,6 +282,11 @@ int main(int argc, char const *argv[])
         }
         else
         {
+            if (line[curser] == '\n' || line[curser] == ' ' || line[curser] == '\t')
+            {
+                game.stat.words_typed++;
+            }
+
             game.stat.typed_chars++;
             if (c == line[curser])
             {
