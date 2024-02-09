@@ -88,7 +88,7 @@ int count_lines(FILE *file)
     // save curser position
     long int curser_pos = ftell(file);
 
-    int count = 0;
+    int count = 1;
     int c = getc(file);
     while (c != EOF)
     {
@@ -118,7 +118,7 @@ bool create_game(struct bt *game, const char *filename)
     game->lines = malloc(sizeof(game->lines[0]) * lines_count);
 
     // load each line
-    for (size_t i = 0; i <= lines_count; i++)
+    for (size_t i = 0; i < lines_count; i++)
     {
         size_t buff_size = 128;
         char buff[buff_size];
@@ -132,7 +132,7 @@ bool create_game(struct bt *game, const char *filename)
         {
             size_t size_of_line = 1;
             game->lines[i] = malloc(sizeof(char));
-            memcpy(game->lines[i], "\0", size_of_line);
+            game->lines[i][0] = '\0';
         }
     }
 
